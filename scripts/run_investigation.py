@@ -221,8 +221,7 @@ def _analyzer_specs(config: Config) -> tuple[AnalyzerSpec, ...]:
             name="concentration",
             is_runnable=lambda d: _has(d.cda, "CD_ATIVO", "VL_MERCADO"),
             run=lambda d: {
-                "concentration_violations": ConcentrationAnalyzer(
-                ).detect_excessive_concentration(_cda(d))
+                "concentration_violations": _run_concentration(d)
             },
         ),
         AnalyzerSpec(
@@ -249,6 +248,31 @@ def _analyzer_specs(config: Config) -> tuple[AnalyzerSpec, ...]:
             },
         ),
     )
+
+
+def _run_concentration(loaded: LoadedData) -> pd.DataFrame:
+    """Flag excessive single-position concentration, by CVM fund category.
+
+    Without a category every fund defaults to the 25% single-issuer limit,
+    which is wrong for e.g. FIXED_INCOME (20%). Categories come from the
+    registry's CLASSE column, same mapping PeerComparisonAnalyzer uses.
+    """
+    analyzer = ConcentrationAnalyzer()
+    cadastro = loaded.cadastro
+    if _has(cadastro, "CNPJ_FUNDO"):
+        class_mapping = {
+            "Fundo de Ações": "EQUITY",
+            "Fundo de Renda Fixa": "FIXED_INCOME",
+            "Fundo Multimercado": "MULTI_MARKET",
+            "Fundo Cambial": "FX",
+            "Fundo de Investimento Imobiliário": "REAL_ESTATE",
+        }
+        categories = cadastro["CLASSE"].fillna("UNKNOWN").map(class_mapping).fillna("DEFAULT") \
+            if "CLASSE" in cadastro.columns else pd.Series("DEFAULT", index=cadastro.index)
+        analyzer.load_fund_categories(
+            dict(zip(cadastro["CNPJ_FUNDO"], categories, strict=True))
+        )
+    return analyzer.detect_excessive_concentration(_normalize_cda_columns(loaded.cda))
 
 
 def _run_peer_comparison(loaded: LoadedData) -> pd.DataFrame:

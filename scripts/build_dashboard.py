@@ -661,6 +661,14 @@ def render(data: dict[str, Any], *, fragment: bool = False) -> str:
   </dl>
 </header>
 
+<nav class="tabbar" role="tablist" aria-label="Dashboard sections">
+  <button type="button" role="tab" id="tab-btn-screening" aria-controls="tab-screening"
+          aria-selected="true" class="tab-btn is-active" data-tab="screening">Screening</button>
+  <button type="button" role="tab" id="tab-btn-methodology" aria-controls="tab-methodology"
+          aria-selected="false" class="tab-btn" data-tab="methodology">Methodology</button>
+</nav>
+
+<section id="tab-screening" role="tabpanel" aria-labelledby="tab-btn-screening">
 {_lead_banner()}
 {_coverage_banner(data)}
 {_entity_level_banner(data)}
@@ -696,6 +704,11 @@ def render(data: dict[str, Any], *, fragment: bool = False) -> str:
      common in legitimate portfolios. Corroborate anything you escalate against
      records this toolkit cannot see (subscription ledgers, transfers, custody).</p>
 </footer>
+</section>
+
+<section id="tab-methodology" role="tabpanel" aria-labelledby="tab-btn-methodology" hidden>
+{_methodology_html()}
+</section>
 
 <script id="data" type="application/json">{payload}</script>
 <script>{_squeeze(_SCRIPT)}</script>
@@ -779,6 +792,75 @@ def _coverage_banner(data: dict[str, Any]) -> str:
     )
 
 
+def _methodology_html() -> str:
+    """Static explainer for the 'Methodology' tab.
+
+    Independent of any run's data -- it explains what the detectors are and
+    how their reliability has (and has not) been checked, not what this
+    specific run found. Kept short: the per-detector caveats already live
+    next to each finding via `_explanations`.
+    """
+    return """
+<div class="methodology">
+  <h2>How this screen works</h2>
+  <p>The pipeline reads CVM's public filings (daily NAV/flows, portfolio
+     composition, fund registry) and runs about 19 independent statistical
+     detectors per fund. None are machine-learned — every one is a threshold
+     or z-score check, fast and free of training data, but only as good as
+     its threshold for a given fund type.</p>
+
+  <table>
+    <thead><tr><th>Family</th><th>Detectors</th><th>What it flags</th></tr></thead>
+    <tbody>
+      <tr><td>Flow / NAV</td><td>flow z-scores, PL drops, redemption runs,
+          flow-vs-performance divergence</td>
+          <td>statistically unusual capta&ccedil;&atilde;o/resgate or PL moves</td></tr>
+      <tr><td>Valuation</td><td>Benford's Law, valuation smoothing, window
+          dressing, price divergence</td>
+          <td>numbers that look fabricated or smoothed rather than market-marked</td></tr>
+      <tr><td>Portfolio</td><td>phantom assets, concentration, reconciliation,
+          cost basis</td>
+          <td>assets that don't exist in registries, or portfolios that don't add up</td></tr>
+      <tr><td>Structure</td><td>circular flow, layered funds, shell networks,
+          cross-fund issuer, peer comparison</td>
+          <td>patterns matched against the documented Banco Master/REAG scheme</td></tr>
+    </tbody>
+  </table>
+
+  <h2>What's actually been measured</h2>
+  <p>A synthetic-data eval harness (<code>evals/</code>) injects labeled fraud
+     into 4 of 40 funds per signal and checks recall and false-positive rate
+     against the other 36 clean funds. Recall is 100% on every signal tested;
+     false-positive rate on the clean synthetic funds ranges 0&ndash;10%. That
+     is real evidence the core logic works — but it is a synthetic universe,
+     not real CVM data, where legitimate funds have structural quirks
+     (feeder/master fund families, illiquid credit, small AUM) a synthetic
+     fixture doesn't reproduce.</p>
+
+  <h2>A known false-positive source, and the fix</h2>
+  <p>An early full-manager run flagged 90 of 94 funds (96%) at a major,
+     reputable administrator — almost all on <code>concentration_violations</code>,
+     because a feeder fund (FIC) legitimately holding ~100% of its portfolio in
+     its single master fund's cotas was scored against the same 20&ndash;25%
+     single-issuer limit that applies to a direct-portfolio fund. That is
+     standard, CVM-permitted architecture, not a diversification failure.</p>
+  <p>The concentration detector now recognizes a top holding that is itself
+     another fund's CNPJ and excludes it from the regulatory-limit, HHI and
+     top-5 checks — the same treatment <code>phantom_assets_by_fund</code>
+     already gives ordinary fund-of-fund holdings. A fund concentrated in
+     something that is <em>not</em> a fund cota is still flagged normally.</p>
+
+  <h2>Reading a flag</h2>
+  <p><strong>Investigate</strong> means strong signals (HIGH/CRITICAL) in at
+     least two independent evidence families. <strong>Review</strong> means one
+     strong family, or several weaker ones. Neither means fraud — every
+     detector here produces a lead, not proof, and needs corroboration this
+     toolkit cannot see: subscription ledgers, bank transfers, counterparty
+     documentation.</p>
+</div>
+"""
+
+
 _STYLE = """
 *,*::before,*::after{box-sizing:border-box}
 
@@ -835,6 +917,37 @@ code,.mono,.cnpj,.metric{
   margin:0; font-size:1.35rem; font-weight:620; letter-spacing:-.01em;
   text-wrap:balance;
 }
+
+.tabbar{
+  display:flex; gap:4px; padding:10px clamp(16px,4vw,36px) 0;
+  border-bottom:1px solid var(--line);
+}
+.tab-btn{
+  padding:9px 14px; border:0; border-bottom:2px solid transparent; border-radius:0;
+  background:none; color:var(--ink-soft); font:inherit; font-size:.85rem; font-weight:550;
+  cursor:pointer;
+}
+.tab-btn:hover{color:var(--ink)}
+.tab-btn:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
+.tab-btn.is-active{color:var(--accent); border-bottom-color:var(--accent)}
+
+.methodology{
+  max-width:78ch; margin:0 auto; padding:24px clamp(16px,4vw,36px) 40px;
+}
+.methodology h2{
+  margin:26px 0 8px; font-size:1rem; font-weight:620;
+}
+.methodology h2:first-child{margin-top:0}
+.methodology p{margin:0 0 10px; color:var(--ink-soft); font-size:.9rem}
+.methodology table{
+  width:100%; border-collapse:collapse; margin:10px 0 16px; font-size:.83rem;
+}
+.methodology th,.methodology td{
+  text-align:left; padding:7px 10px; border-bottom:1px solid var(--line-soft);
+  vertical-align:top;
+}
+.methodology th{color:var(--ink-faint); font-size:.68rem; letter-spacing:.05em; text-transform:uppercase}
+.methodology code{font-size:.85em}
 .run{margin:5px 0 0; color:var(--ink-soft); font-size:.86rem}
 .run.subtle{color:var(--ink-faint); font-size:.78rem}
 .run strong{font-weight:600; color:var(--ink)}
@@ -1017,6 +1130,20 @@ footer p{margin:0}
 """
 
 _SCRIPT = r"""
+(function(){
+  var tabBtns = Array.prototype.slice.call(document.querySelectorAll('.tab-btn'));
+  tabBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      tabBtns.forEach(function(b){
+        var active = b === btn;
+        b.classList.toggle('is-active', active);
+        b.setAttribute('aria-selected', active ? 'true' : 'false');
+        document.getElementById(b.getAttribute('aria-controls')).hidden = !active;
+      });
+    });
+  });
+})();
+
 (function(){
   var D = JSON.parse(document.getElementById('data').textContent);
   var testKeys = D.tests.map(function(t){ return t.key; });
