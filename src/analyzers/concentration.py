@@ -6,6 +6,7 @@ e exposição a partes relacionadas.
 """
 
 import logging
+import re
 
 import pandas as pd
 from pathlib import Path
@@ -15,6 +16,20 @@ from config.constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _is_fund_cota(asset_code) -> bool:
+    """True when a CD_ATIVO is another fund's CNPJ rather than a market position.
+
+    Mirrors the check in enhanced_phantom_assets.classify_asset_type: a
+    14-digit code is a fund CNPJ. A FIC (fundo de investimento em cotas)
+    legitimately holds ~100% of its portfolio in a single master fund's
+    cotas -- that is the structure, not a diversification failure -- so
+    concentration limits, which exist to cap direct-market/issuer exposure,
+    should not apply to that position.
+    """
+    digits = re.sub(r"\D", "", str(asset_code))
+    return len(digits) == 14
 
 
 class ConcentrationAnalyzer:
@@ -129,8 +144,12 @@ class ConcentrationAnalyzer:
         category = self.fund_categories.get(fund_cnpj, 'DEFAULT')
         regulatory_limit = self.concentration_limits.get(category, 0.25)
 
-        # Violações
-        violates_limit = top1_pct > (regulatory_limit * 100)
+        largest_position = portfolio_sorted.iloc[0]['CD_ATIVO'] if len(portfolio_sorted) > 0 else None
+        is_feeder_fund = _is_fund_cota(largest_position) if largest_position is not None else False
+
+        # Violações -- a feeder fund's concentration in its master fund's
+        # cotas is not a regulatory-limit violation; see _is_fund_cota.
+        violates_limit = (not is_feeder_fund) and top1_pct > (regulatory_limit * 100)
 
         # Número de posições
         num_positions = len(portfolio)
@@ -152,9 +171,10 @@ class ConcentrationAnalyzer:
             # Limites
             'regulatory_limit_pct': regulatory_limit * 100,
             'violates_limit': violates_limit,
+            'is_feeder_fund': is_feeder_fund,
 
             # Maior posição
-            'largest_position': portfolio_sorted.iloc[0]['CD_ATIVO'] if len(portfolio_sorted) > 0 else None,
+            'largest_position': largest_position,
             'largest_position_value': top1_value
         }
 
@@ -223,13 +243,24 @@ class ConcentrationAnalyzer:
         metrics["regulatory_limit_pct"] = metrics["category"].map(
             lambda c: self.concentration_limits.get(c, 0.25) * 100.0
         )
-        metrics["violates_limit"] = metrics["top1_pct"] > metrics["regulatory_limit_pct"]
+        # A feeder fund (FIC) concentrated in its master fund's cotas is the
+        # normal shape of that structure, not a diversification failure --
+        # see _is_fund_cota. Exclude it from every concentration check below,
+        # not just the regulatory limit: HHI and top5 are driven by the same
+        # single position and would otherwise flag it too.
+        metrics["is_feeder_fund"] = metrics["largest_position"].map(_is_fund_cota)
+        metrics["violates_limit"] = (~metrics["is_feeder_fund"]) & (
+            metrics["top1_pct"] > metrics["regulatory_limit_pct"]
+        )
         metrics["largest_position_value"] = metrics["top1_value"]
 
         flagged = metrics[
-            metrics["violates_limit"]
-            | (metrics["hhi"] > HHI_HIGH)
-            | (metrics["top5_pct"] > 75)
+            ~metrics["is_feeder_fund"]
+            & (
+                metrics["violates_limit"]
+                | (metrics["hhi"] > HHI_HIGH)
+                | (metrics["top5_pct"] > 75)
+            )
         ].copy()
         if flagged.empty:
             logger.info("Nenhuma violacao de concentracao detectada")
