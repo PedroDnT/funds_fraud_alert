@@ -316,7 +316,10 @@ class TestLeadsFraming:
     def test_page_states_leads_are_not_verdicts(self, run_dir):
         page = render(load_run(run_dir))
         assert "Leads, not verdicts" in page
-        assert "Investigate" in page
+        assert "Strong flags" in page
+        assert "A flag is a statistical pattern, not an allegation." in page
+        assert "mailto:pedro@deloslabs.xyz" in page
+        assert ">Investigate<" not in page and "> Investigate</label>" not in page
         assert "Review+" in page
         assert "All funds" in page
         assert "no signal" in page

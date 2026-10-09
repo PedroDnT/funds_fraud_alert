@@ -649,7 +649,7 @@ def render(data: dict[str, Any], *, fragment: bool = False) -> str:
   </div>
   <dl class="tallies">
     <div><dt>Reporting funds</dt><dd>{data.get('reporting_funds') or len(data['funds'])}</dd></div>
-    <div><dt>Investigate</dt><dd>{
+    <div><dt>Strong flags</dt><dd>{
         sum(1 for f in data['funds'] if f['tier'] == 'INVESTIGATE')
     }</dd></div>
     <div><dt>Review</dt><dd>{
@@ -680,7 +680,7 @@ def render(data: dict[str, Any], *, fragment: bool = False) -> str:
              placeholder="Search by CNPJ or fund name" aria-label="Search funds">
       <fieldset class="queue-filter">
         <legend>Queue</legend>
-        <label><input type="radio" name="queue" value="INVESTIGATE" checked> Investigate</label>
+        <label><input type="radio" name="queue" value="INVESTIGATE" checked> Strong flags</label>
         <label><input type="radio" name="queue" value="REVIEW"> Review+</label>
         <label><input type="radio" name="queue" value="SIGNAL"> Any signal</label>
         <label><input type="radio" name="queue" value="ALL"> All funds</label>
@@ -745,9 +745,11 @@ def _lead_banner() -> str:
     return (
         '<p class="coverage lead">'
         "<strong>Leads, not verdicts.</strong> "
-        "Investigate means strong signals in at least two independent evidence "
+        "A flag is a statistical pattern, not an allegation. "
+        "Strong flags means strong signals in at least two independent evidence "
         "families; Review means one strong or several weaker families. Neither "
-        "means fraud. Most signals have an innocent explanation."
+        "means fraud. Most signals have an innocent explanation. "
+        'To report an error, write to <a href="mailto:pedro@deloslabs.xyz">pedro@deloslabs.xyz</a>.'
         "</p>"
     )
 
@@ -851,7 +853,7 @@ def _methodology_html() -> str:
      something that is <em>not</em> a fund cota is still flagged normally.</p>
 
   <h2>Reading a flag</h2>
-  <p><strong>Investigate</strong> means strong signals (HIGH/CRITICAL) in at
+  <p><strong>Strong flags</strong> means strong signals (HIGH/CRITICAL) in at
      least two independent evidence families. <strong>Review</strong> means one
      strong family, or several weaker ones. Neither means fraud — every
      detector here produces a lead, not proof, and needs corroboration this
@@ -1185,6 +1187,8 @@ _SCRIPT = r"""
     });
   }
   function label(key){ return key.replace(/_/g,' '); }
+  var TIER_NAME = {INVESTIGATE:'Strong flags', REVIEW:'Review', OBSERVE:'Observe', NO_SIGNAL:'No signal'};
+  function tierName(t){ return TIER_NAME[t] || label(t); }
 
   // What the signal means, what would explain it innocently, what to check next.
   // Collapsed by default: the matrix is for scanning, this is for deciding.
@@ -1311,7 +1315,7 @@ _SCRIPT = r"""
       '<div class="detail-head">' +
         '<h2>' + esc(f.name || 'Fund ' + f.display) + '</h2>' +
         '<p class="cnpj">' + esc(f.display) + '</p>' +
-        '<p class="entity-note">Lead tier: <strong>' + esc(label(f.tier)) +
+        '<p class="entity-note">Lead tier: <strong>' + esc(tierName(f.tier)) +
           '</strong> · ' + f.familyCount + ' independent evidence ' +
           (f.familyCount === 1 ? 'family' : 'families') +
           (f.reported ? '' : ' · not present in this month’s informe') + '</p>' +
