@@ -262,7 +262,7 @@ footer p{margin:0}
   </div>
   <dl class="tallies">
     <div><dt>Reporting funds</dt><dd>25509</dd></div>
-    <div><dt>Investigate</dt><dd>659</dd></div>
+    <div><dt>Strong flags</dt><dd>659</dd></div>
     <div><dt>Review</dt><dd>11429</dd></div>
     <div><dt>No signal</dt><dd>819</dd></div>
   </dl>
@@ -277,7 +277,7 @@ footer p{margin:0}
 
 <section id="tab-screening" role="tabpanel" aria-labelledby="tab-btn-screening">
 
-<p class="coverage lead"><strong>Leads, not verdicts.</strong> Investigate means strong signals in at least two independent evidence families; Review means one strong or several weaker families. Neither means fraud. Most signals have an innocent explanation.</p>
+<p class="coverage lead"><strong>Leads, not verdicts.</strong> A flag is a statistical pattern, not an allegation. Strong flags means strong signals in at least two independent evidence families; Review means one strong or several weaker families. Neither means fraud. Most signals have an innocent explanation. To report an error, write to <a href="mailto:pedro@deloslabs.xyz">pedro@deloslabs.xyz</a>.</p>
 <p class="coverage warn">Incomplete coverage — 1 skipped for missing inputs: <code>market_data</code>. Those detectors report nothing either way; absence of a signal from them is not a clean result.</p>
 <p class="coverage entity"><strong>Network and issuer checks:</strong> cross fund issuer, manager network anomalies. These ran outside the per-fund matrix and require counterparty/network review.</p>
 
@@ -288,7 +288,7 @@ footer p{margin:0}
              placeholder="Search by CNPJ or fund name" aria-label="Search funds">
       <fieldset class="queue-filter">
         <legend>Queue</legend>
-        <label><input type="radio" name="queue" value="INVESTIGATE" checked> Investigate</label>
+        <label><input type="radio" name="queue" value="INVESTIGATE" checked> Strong flags</label>
         <label><input type="radio" name="queue" value="REVIEW"> Review+</label>
         <label><input type="radio" name="queue" value="SIGNAL"> Any signal</label>
         <label><input type="radio" name="queue" value="ALL"> All funds</label>
@@ -365,7 +365,7 @@ footer p{margin:0}
      something that is <em>not</em> a fund cota is still flagged normally.</p>
 
   <h2>Reading a flag</h2>
-  <p><strong>Investigate</strong> means strong signals (HIGH/CRITICAL) in at
+  <p><strong>Strong flags</strong> means strong signals (HIGH/CRITICAL) in at
      least two independent evidence families. <strong>Review</strong> means one
      strong family, or several weaker ones. Neither means fraud — every
      detector here produces a lead, not proof, and needs corroboration this
@@ -425,6 +425,8 @@ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
 });
 }
 function label(key){ return key.replace(/_/g,' '); }
+var TIER_NAME = {INVESTIGATE:'Strong flags', REVIEW:'Review', OBSERVE:'Observe', NO_SIGNAL:'No signal'};
+function tierName(t){ return TIER_NAME[t] || label(t); }
 function explain(key){
 var e = D.explanations[key];
 if (!e) return '';
@@ -533,7 +535,7 @@ detailEl.innerHTML =
 '<div class="detail-head">' +
 '<h2>' + esc(f.name || 'Fund ' + f.display) + '</h2>' +
 '<p class="cnpj">' + esc(f.display) + '</p>' +
-'<p class="entity-note">Lead tier: <strong>' + esc(label(f.tier)) +
+'<p class="entity-note">Lead tier: <strong>' + esc(tierName(f.tier)) +
 '</strong> · ' + f.familyCount + ' independent evidence ' +
 (f.familyCount === 1 ? 'family' : 'families') +
 (f.reported ? '' : ' · not present in this month’s informe') + '</p>' +
